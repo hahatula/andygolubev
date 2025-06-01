@@ -74,31 +74,17 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
     const offScreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
     const [isImageLoaded, setIsImageLoaded] = useState(false);
+    const [isCanvasDrawingImage, setIsCanvasDrawingImage] = useState(false);
     // Store mousePos in a ref for the animation loop to access directly
     const mousePosRef = useRef({ x: 0, y: 0 });
     const isActivelyMovingRef = useRef(false);
     const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const animationFrameId = useRef<number>(0);
     const particles = useRef<Particle[]>([]);
+    const distortionAmountRef = useRef(0);
+    const lastMousePosRef = useRef({ x: 0, y: 0 });
+    const mouseVelocityRef = useRef({ x: 0, y: 0 });
 
-    // Effect to prepare the off-screen canvas once the image is loaded
-    useEffect(() => {
-        if (isImageLoaded && imageRef.current && containerRef.current) {
-            const image = imageRef.current;
-            const container = containerRef.current;
-            const offScreenCanvas = document.createElement('canvas');
-            const containerRect = container.getBoundingClientRect();
-            if (containerRect.width > 0 && containerRect.height > 0) {
-                offScreenCanvas.width = containerRect.width;
-                offScreenCanvas.height = containerRect.height;
-                const ctx = offScreenCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(image, 0, 0, offScreenCanvas.width, offScreenCanvas.height);
-                    offScreenCanvasRef.current = offScreenCanvas;
-                }
-            }
-        }
-    }, [isImageLoaded]);
 
     // Effect to handle image loading state for the main <img>
     useEffect(() => {
@@ -126,61 +112,247 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
 
         if (!visibleCanvas || !visibleCtx || !container) return;
 
-        // Ensure canvas is sized correctly
+        // Ensure canvas is sized correctly and off-screen canvas is prepared
         const resizeCanvas = () => {
-            if (containerRef.current && canvasRef.current) {
+            if (containerRef.current && canvasRef.current && imageRef.current) {
                 const containerRect = containerRef.current.getBoundingClientRect();
-                if (canvasRef.current.width !== containerRect.width || canvasRef.current.height !== containerRect.height) {
-                    canvasRef.current.width = containerRect.width;
-                    canvasRef.current.height = containerRect.height;
+                const newWidth = Math.max(1, containerRect.width); // Ensure positive dimensions
+                const newHeight = Math.max(1, containerRect.height); // Ensure positive dimensions
+
+                let offScreenResizedOrCreated = false;
+
+                // Manage offScreenCanvas
+                if (!offScreenCanvasRef.current && isImageLoaded && newWidth > 0 && newHeight > 0) {
+                    // Create offScreenCanvas if it doesn't exist, image is loaded, and dimensions are valid
+                    const offScreenCanvas = document.createElement('canvas');
+                    offScreenCanvas.width = newWidth;
+                    offScreenCanvas.height = newHeight;
+                    offScreenCanvasRef.current = offScreenCanvas;
+                    offScreenResizedOrCreated = true;
+                } else if (offScreenCanvasRef.current && (offScreenCanvasRef.current.width !== newWidth || offScreenCanvasRef.current.height !== newHeight)) {
+                    // Resize existing offScreenCanvas
+                    offScreenCanvasRef.current.width = newWidth;
+                    offScreenCanvasRef.current.height = newHeight;
+                    offScreenResizedOrCreated = true;
+                }
+
+                // If offScreenCanvas was created or resized, and image is loaded, redraw it.
+                if (offScreenResizedOrCreated && offScreenCanvasRef.current && imageRef.current && isImageLoaded) {
+                    const offCtx = offScreenCanvasRef.current.getContext('2d');
+                    if (offCtx) {
+                        offCtx.clearRect(0, 0, newWidth, newHeight); // Clear before redrawing
+                        offCtx.drawImage(imageRef.current, 0, 0, newWidth, newHeight);
+                    }
+                }
+
+                // Manage visibleCanvas
+                if (canvasRef.current.width !== newWidth || canvasRef.current.height !== newHeight) {
+                    canvasRef.current.width = newWidth;
+                    canvasRef.current.height = newHeight;
                 }
             }
         };
-        resizeCanvas(); // Initial size
+        resizeCanvas(); // Initial size and off-screen canvas setup if image already loaded
 
-        // Keep a ref to the animation function to ensure it's stable if needed, though not strictly necessary here
-        // as it uses refs for dynamic data.
+        const applySlitScanDistortion = (
+            ctx: CanvasRenderingContext2D,
+            source: HTMLCanvasElement,
+            amount: number,
+            mousePos: { x: number, y: number },
+            canvasWidth: number,
+            canvasHeight: number
+        ) => {
+            if (amount <= 0 || canvasWidth <= 0 || canvasHeight <= 0) {
+                ctx.drawImage(source, 0, 0, canvasWidth, canvasHeight);
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight); // Clear for the new effect
+
+            const verticalWaveFrequency = 0.02; // How many waves vertically
+            const mouseYSensitivity = 0.03;    // How mouse Y shifts wave phase
+            const horizontalInfluenceWidthFactor = 0.18; // Factor of canvasWidth for Gaussian spread
+            const verticalInfluenceHeightFactor = 0.15; // NEW: Factor of canvasHeight for vertical Gaussian spread
+            const maxPixelShift = 70;         // Max horizontal shift
+
+            const horizontalInfluenceWidth = canvasWidth * horizontalInfluenceWidthFactor;
+            const verticalInfluenceHeight = canvasHeight * verticalInfluenceHeightFactor; // NEW
+
+            // Draw in thin horizontal slices/scanlines
+            const sliceHeight = 4; // Effectively per-scanline - Increased from 1
+
+            for (let y = 0; y < canvasHeight; y += sliceHeight) {
+                const sinPhase = y * verticalWaveFrequency + mousePos.y * mouseYSensitivity;
+                const sinValue = Math.sin(sinPhase);
+
+                // NEW: Calculate vertical influence
+                const distYToMouse = Math.abs((y + sliceHeight / 2) - mousePos.y);
+                const verticalGaussInfluence = Math.exp(-Math.pow(distYToMouse / verticalInfluenceHeight, 2.0));
+
+                // Draw this slice in segments to apply varying offset
+                const segmentWidth = 8; // Process in small horizontal chunks - Increased from 4
+                for (let x = 0; x < canvasWidth; x += segmentWidth) {
+                    const segmentCenterX = x + segmentWidth / 2;
+                    const distXToMouse = segmentCenterX - mousePos.x;
+                    const gaussInfluence = Math.exp(-Math.pow(distXToMouse / horizontalInfluenceWidth, 2.0));
+                    const currentPixelShift = amount * gaussInfluence * verticalGaussInfluence * sinValue * maxPixelShift;
+
+                    const idealGlobalSourceX = x - currentPixelShift;
+
+                    let currentDrawDestX = x;
+                    let remainingDestWidth = segmentWidth;
+
+                    // 1. Handle left overhang (if ideal source starts before image 0)
+                    if (idealGlobalSourceX < 0 && remainingDestWidth > 0) {
+                        const overhangWidth = Math.min(remainingDestWidth, -idealGlobalSourceX);
+                        if (overhangWidth > 0) {
+                            ctx.drawImage(source, 0, y, 1, sliceHeight, currentDrawDestX, y, overhangWidth, sliceHeight);
+                            currentDrawDestX += overhangWidth;
+                            remainingDestWidth -= overhangWidth;
+                        }
+                    }
+
+                    // 2. Handle the part that samples from within the image
+                    if (remainingDestWidth > 0) {
+                        const sourceXForValidPart = Math.max(0, idealGlobalSourceX);
+                        const sourceAvailableWidth = canvasWidth - sourceXForValidPart;
+
+                        const drawableWidthFromValidSource = Math.min(remainingDestWidth, sourceAvailableWidth);
+
+                        if (drawableWidthFromValidSource > 0) {
+                            ctx.drawImage(source, sourceXForValidPart, y, drawableWidthFromValidSource, sliceHeight, currentDrawDestX, y, drawableWidthFromValidSource, sliceHeight);
+                            currentDrawDestX += drawableWidthFromValidSource;
+                            remainingDestWidth -= drawableWidthFromValidSource;
+                        }
+                    }
+
+                    // 3. Handle right overhang (if there's still dest width left, source ran out)
+                    if (remainingDestWidth > 0) {
+                        // This remainingDestWidth must be filled by the last pixel of the source image
+                        // Ensure source image has width before accessing canvasWidth - 1
+                        if (canvasWidth > 0) {
+                            ctx.drawImage(source, canvasWidth - 1, y, 1, sliceHeight, currentDrawDestX, y, remainingDestWidth, sliceHeight);
+                        } else {
+                            // Fallback if canvasWidth is 0, though unlikely with prior checks
+                            // Potentially fill with a default color or leave transparent if this state is possible
+                        }
+                    }
+                }
+            }
+        };
+
         const createParticles = (x: number, y: number) => {
             const sourceCanvas = offScreenCanvasRef.current;
             if (!sourceCanvas) return;
             const sourceCtx = sourceCanvas.getContext('2d');
             if (!sourceCtx) return;
-            const particleCount = 10;
-            const radius = 50;
+            const particleCount = 20;
+            const radius = 80;
+
+            const { x: velX, y: velY } = mouseVelocityRef.current;
+            const movementMagnitude = Math.sqrt(velX * velX + velY * velY);
+
+            const particleAngleSpreadForMovement = Math.PI / 2; // For actual particle flight direction
+            const samplingConeAngleForTail = Math.PI / 2;   // Angle for the cone shape of initial positions
+
             for (let i = 0; i < particleCount; i++) {
-                const angle = (Math.PI * 2 * i) / particleCount;
-                const distance = Math.random() * radius;
-                const particleX = x + Math.cos(angle) * distance;
-                const particleY = y + Math.sin(angle) * distance;
-                if (particleX >= 0 && particleX < sourceCanvas.width && particleY >= 0 && particleY < sourceCanvas.height) {
+                let particleSourceX, particleSourceY;
+                let emissionAngle;
+
+                if (movementMagnitude > 0.5) { // Active movement: TAIL logic
+                    const tailBaseAngle = Math.atan2(velY, velX) + Math.PI;
+
+                    const distAlongTailAxis = Math.random() * radius;
+                    const maxPerpOffset = distAlongTailAxis * Math.tan(samplingConeAngleForTail / 2);
+                    const actualPerpOffset = (Math.random() - 0.5) * 2 * maxPerpOffset;
+
+                    const cosTail = Math.cos(tailBaseAngle);
+                    const sinTail = Math.sin(tailBaseAngle);
+
+                    particleSourceX = x + cosTail * distAlongTailAxis - sinTail * actualPerpOffset;
+                    particleSourceY = y + sinTail * distAlongTailAxis + cosTail * actualPerpOffset;
+
+                    emissionAngle = tailBaseAngle + (Math.random() - 0.5) * particleAngleSpreadForMovement;
+
+                } else { // Stationary or slow movement: circular burst logic
+                    const randomSamplingAngle = Math.random() * Math.PI * 2;
+                    const randomSamplingDist = Math.random() * radius;
+                    particleSourceX = x + Math.cos(randomSamplingAngle) * randomSamplingDist;
+                    particleSourceY = y + Math.sin(randomSamplingAngle) * randomSamplingDist;
+
+                    emissionAngle = Math.random() * Math.PI * 2;
+                }
+
+                // Ensure particleSourceX and particleSourceY are defined before using them
+                if (typeof particleSourceX === 'number' && typeof particleSourceY === 'number' &&
+                    particleSourceX >= 0 && particleSourceX < sourceCanvas.width &&
+                    particleSourceY >= 0 && particleSourceY < sourceCanvas.height) {
                     try {
-                        const pixelData = sourceCtx.getImageData(Math.floor(particleX), Math.floor(particleY), 1, 1).data;
+                        const pixelData = sourceCtx.getImageData(Math.floor(particleSourceX), Math.floor(particleSourceY), 1, 1).data;
                         const hsb = rgbToHsb(pixelData[0], pixelData[1], pixelData[2]);
+
                         particles.current.push({
-                            x: particleX, y: particleY, originalX: particleX, originalY: particleY,
+                            x: particleSourceX, y: particleSourceY, originalX: particleSourceX, originalY: particleSourceY,
                             h: hsb.h, s: hsb.s, b: hsb.v,
                             size: Math.random() * 3 + 4,
                             speed: Math.random() * 2 + 0.5,
-                            angle: Math.random() * Math.PI * 2,
+                            angle: emissionAngle,
                             life: 0,
                             maxLife: Math.random() * 60 + 40,
                         });
-                    } catch (e) { continue; }
-                } else { continue; }
+                    } catch (e) { /* ignore error & continue */ }
+                } else { /* ignore particle & continue */ }
             }
         };
 
-        let isActive = true; // Flag to control the loop
-        const sOffsetInitial = 10;  // Initial saturation boost
-        const bOffsetInitial = -10; // Initial brightness reduction
-        const colorTransitionDuration = 0.2; // 20% of life to transition from modified HSB to true HSB
+        let isActive = true;
+        const sOffsetInitial = 10;
+        const bOffsetInitial = -10;
+        const colorTransitionDuration = 0.3;
 
         const animate = () => {
             if (!isActive || !visibleCtx || !visibleCanvas) return;
-            resizeCanvas();
-            visibleCtx.clearRect(0, 0, visibleCanvas.width, visibleCanvas.height);
+            resizeCanvas(); // Call resize at the start of each frame
+
+            // Update mouse velocity
+            const currentFrameMouseX = mousePosRef.current.x;
+            const currentFrameMouseY = mousePosRef.current.y;
 
             if (isActivelyMovingRef.current) {
+                mouseVelocityRef.current.x = currentFrameMouseX - lastMousePosRef.current.x;
+                mouseVelocityRef.current.y = currentFrameMouseY - lastMousePosRef.current.y;
+            } else {
+                mouseVelocityRef.current.x *= 0.95; // Decay factor
+                mouseVelocityRef.current.y *= 0.95;
+                if (Math.abs(mouseVelocityRef.current.x) < 0.1) mouseVelocityRef.current.x = 0;
+                if (Math.abs(mouseVelocityRef.current.y) < 0.1) mouseVelocityRef.current.y = 0;
+            }
+            lastMousePosRef.current = { x: currentFrameMouseX, y: currentFrameMouseY };
+
+            // Decay distortion if mouse is not moving
+            if (!isActivelyMovingRef.current && distortionAmountRef.current > 0) {
+                distortionAmountRef.current = Math.max(0, distortionAmountRef.current - 0.025); // Slightly faster decay
+            }
+
+            visibleCtx.clearRect(0, 0, visibleCanvas.width, visibleCanvas.height);
+
+            const sourceCanvas = offScreenCanvasRef.current;
+            if (sourceCanvas && sourceCanvas.width > 0 && sourceCanvas.height > 0) { // Ensure source is valid
+                if (distortionAmountRef.current > 0 && mousePosRef.current) {
+                    // applySlitScanDistortion(visibleCtx, sourceCanvas, distortionAmountRef.current, mousePosRef.current, visibleCanvas.width, visibleCanvas.height);
+                    applySlitScanDistortion(visibleCtx, sourceCanvas, distortionAmountRef.current, mousePosRef.current, visibleCanvas.width, visibleCanvas.height);
+                } else {
+                    visibleCtx.drawImage(sourceCanvas, 0, 0, visibleCanvas.width, visibleCanvas.height);
+                }
+                if (!isCanvasDrawingImage && visibleCanvas.width > 0 && visibleCanvas.height > 0) {
+                    setIsCanvasDrawingImage(true);
+                }
+            } else {
+                // If sourceCanvas isn't ready, clear to avoid drawing stale frames.
+                // This case should be rare with the new resizeCanvas logic.
+            }
+
+            if (isActivelyMovingRef.current && offScreenCanvasRef.current) { // Ensure offScreenCanvas is available for particle creation
                 createParticles(mousePosRef.current.x, mousePosRef.current.y);
             }
 
@@ -246,9 +418,19 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
-        mousePosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        const newX = e.clientX - rect.left;
+        const newY = e.clientY - rect.top;
+
+        // If starting to move after a stop, initialize lastMousePos to current to avoid a jump in velocity
+        if (!isActivelyMovingRef.current) {
+            lastMousePosRef.current = { x: newX, y: newY };
+        }
+        mousePosRef.current = { x: newX, y: newY };
 
         isActivelyMovingRef.current = true;
+        // Ramp up distortion immediately on move
+        distortionAmountRef.current = Math.min(1, distortionAmountRef.current + 0.20); // Faster ramp-up
+
         if (mouseMoveTimeoutRef.current) clearTimeout(mouseMoveTimeoutRef.current);
         mouseMoveTimeoutRef.current = setTimeout(() => {
             isActivelyMovingRef.current = false;
@@ -267,7 +449,16 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
             onMouseLeave={handleMouseLeave}
             onMouseMove={handleMouseMove}
         >
-            <img ref={imageRef} src={src} alt={alt} className={styles.image} />
+            <img
+                ref={imageRef}
+                src={src}
+                alt={alt}
+                className={styles.image}
+                style={{
+                    opacity: isCanvasDrawingImage ? 0 : 1,
+                    transition: 'opacity 0.5s ease-out'
+                }}
+            />
             {isImageLoaded && <canvas ref={canvasRef} className={styles.canvas} />}
         </div>
     );
