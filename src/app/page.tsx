@@ -1,5 +1,5 @@
 import styles from "./page.module.css";
-import Image from "next/image";
+import DisintegratingImage from "@/components/DisintegratingImage/DisintegratingImage";
 import Achievements from "@/components/Achievements/Achievements";
 import Articles from "@/components/Articles/Articles";
 
@@ -8,11 +8,10 @@ export default function Home() {
     <div className={styles.page}>
       <main className={styles.main}>
         <section className={styles.heroSection}>
-          <Image
+          <DisintegratingImage
             className={styles.heroImage}
             src="/images/sky/hero.jpg"
-            alt="Picture of the author"
-            fill
+            alt="Clouds"
           />
 
           <h1 className={styles.heroTitle}>
