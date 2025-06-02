@@ -291,7 +291,7 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
             if (mouseMoveTimeoutRef.current) clearTimeout(mouseMoveTimeoutRef.current); // Also clear this on unmount
         };
-    }, [isImageLoaded]); // Only re-setup animation if isImageLoaded changes
+    }, [isImageLoaded, isCanvasDrawingImage]);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!containerRef.current) return;
