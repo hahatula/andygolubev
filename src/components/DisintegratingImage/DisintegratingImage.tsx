@@ -22,6 +22,12 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
     const animationFrameId = useRef<number>(0);
     const distortionAmountRef = useRef(0);
 
+    const initialAnimationStateRef = useRef<'pending' | 'active' | 'done'>('pending');
+    const initialAnimationOverrideMousePosRef = useRef<{ x: number, y: number } | null>(null);
+    const initialPulseStartPositionRef = useRef<{ x: number, y: number } | null>(null);
+    const initialPulseEndPositionRef = useRef<{ x: number, y: number } | null>(null);
+    const initialPulseStartIntensityRef = useRef<number>(0.7); // Default start intensity
+    const isMobileDeviceRef = useRef<boolean>(false); // ADDED: Ref to store mobile device status
 
     // Effect to handle image loading state for the main <img>
     useEffect(() => {
@@ -42,6 +48,9 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
     // Single useEffect to manage the animation loop lifecycle
     useEffect(() => {
         if (!isImageLoaded) return;
+
+        // Check for mobile device (touch primary input) once
+        isMobileDeviceRef.current = window.matchMedia('(pointer: coarse)').matches;
 
         const visibleCanvas = canvasRef.current;
         const visibleCtx = visibleCanvas?.getContext('2d');
@@ -129,9 +138,9 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
                 return;
             }
 
-            const verticalWaveFrequency = 0.02;
+            const verticalWaveFrequency = 0.01;
             const mouseYSensitivity = 0.03;
-            const horizontalInfluenceWidthFactor = 0.18;
+            const horizontalInfluenceWidthFactor = 0.12;
             const verticalInfluenceHeightFactor = 0.15;
             const maxPixelShift = 60; // Max Pixel Shift
 
@@ -203,16 +212,51 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
             if (!isActive || !visibleCtx || !visibleCanvas) return;
             resizeCanvas();
 
+            const canvasWidth = visibleCanvas.width;
+            const canvasHeight = visibleCanvas.height;
+
+            // Initial Animation Logic - now conditional on mobile
+            if (isMobileDeviceRef.current && initialAnimationStateRef.current === 'pending' && canvasWidth > 0 && canvasHeight > 0) {
+                initialAnimationStateRef.current = 'active';
+                initialPulseStartPositionRef.current = { x: canvasWidth * 0.8, y: canvasHeight * 0.2 };
+                initialPulseEndPositionRef.current = { x: canvasWidth * 0.2, y: canvasHeight * 0.8 };
+                distortionAmountRef.current = initialPulseStartIntensityRef.current;
+                initialAnimationOverrideMousePosRef.current = { ...initialPulseStartPositionRef.current };
+            } else if (!isMobileDeviceRef.current && initialAnimationStateRef.current === 'pending') {
+                // If not mobile and animation is pending, mark as done immediately to skip it.
+                initialAnimationStateRef.current = 'done';
+            }
+
+            if (initialAnimationStateRef.current === 'active') {
+                if (distortionAmountRef.current > 0 && initialPulseStartPositionRef.current && initialPulseEndPositionRef.current) {
+                    const intensityProgress = 1 - (distortionAmountRef.current / initialPulseStartIntensityRef.current);
+                    const currentX = initialPulseStartPositionRef.current.x + (initialPulseEndPositionRef.current.x - initialPulseStartPositionRef.current.x) * intensityProgress;
+                    const currentY = initialPulseStartPositionRef.current.y + (initialPulseEndPositionRef.current.y - initialPulseStartPositionRef.current.y) * intensityProgress;
+                    initialAnimationOverrideMousePosRef.current = { x: currentX, y: currentY };
+                } else {
+                    // Pulse ended or was interrupted before starting properly
+                    initialAnimationStateRef.current = 'done';
+                    initialAnimationOverrideMousePosRef.current = null;
+                }
+            }
+
+            // Decay distortion (applies to initial animation and mouse-driven)
             if (!isActivelyMovingRef.current && distortionAmountRef.current > 0) {
-                distortionAmountRef.current = Math.max(0, distortionAmountRef.current - 0.025);
+                distortionAmountRef.current = Math.max(0, distortionAmountRef.current - 0.0075); // Slower decay for a longer sweep
+                if (distortionAmountRef.current === 0 && initialAnimationStateRef.current === 'active') {
+                    initialAnimationStateRef.current = 'done';
+                    initialAnimationOverrideMousePosRef.current = null;
+                }
             }
 
             visibleCtx.clearRect(0, 0, visibleCanvas.width, visibleCanvas.height);
 
             const sourceCanvas = offScreenCanvasRef.current;
+            const effectiveMousePos = initialAnimationOverrideMousePosRef.current ?? mousePosRef.current;
+
             if (sourceCanvas && sourceCanvas.width > 0 && sourceCanvas.height > 0) {
-                if (distortionAmountRef.current > 0 && mousePosRef.current) {
-                    applySlitScanDistortion(visibleCtx, sourceCanvas, distortionAmountRef.current, mousePosRef.current, visibleCanvas.width, visibleCanvas.height);
+                if (distortionAmountRef.current > 0 && effectiveMousePos) {
+                    applySlitScanDistortion(visibleCtx, sourceCanvas, distortionAmountRef.current, effectiveMousePos, visibleCanvas.width, visibleCanvas.height);
                 } else {
                     visibleCtx.drawImage(sourceCanvas, 0, 0, visibleCanvas.width, visibleCanvas.height);
                 }
@@ -257,8 +301,13 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
 
         mousePosRef.current = { x: newX, y: newY };
 
+        if (initialAnimationStateRef.current === 'active') {
+            initialAnimationStateRef.current = 'done';
+            initialAnimationOverrideMousePosRef.current = null; // Clear override
+        }
+
         isActivelyMovingRef.current = true;
-        distortionAmountRef.current = Math.min(1, distortionAmountRef.current + 0.20); // Faster ramp-up
+        distortionAmountRef.current = Math.min(1, distortionAmountRef.current + 0.20);
 
         if (mouseMoveTimeoutRef.current) clearTimeout(mouseMoveTimeoutRef.current);
         mouseMoveTimeoutRef.current = setTimeout(() => {

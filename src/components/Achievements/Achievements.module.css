@@ -26,6 +26,12 @@
     background-repeat: no-repeat;
     border-radius: var(--default-radius);
     overflow: hidden;
+
+    transition: all 2s ease-in-out;
+
+    &:hover {
+        background-position: 55% 55%;
+    }
 }
 
 .achievementsCertifications {
@@ -67,11 +73,13 @@
 
 .achievementsOrganisations {
     background-image: url("/images/sky/orgsky.jpg");
+    background-position: 50% 50%;
     grid-column: 1/3;
     display: grid;
     grid-template-columns: 1fr var(--default-offset) var(--default-offset) 1fr;
     margin-top: -520px;
 }
+
 
 .achievementsOrganisationsBlank {
     grid-column: 2/5;
