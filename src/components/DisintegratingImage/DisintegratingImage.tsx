@@ -138,8 +138,6 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
                 return;
             }
 
-            const verticalWaveFrequency = 0.01;
-            const mouseYSensitivity = 0.03;
             const horizontalInfluenceWidthFactor = 0.12;
             const verticalInfluenceHeightFactor = 0.15;
             const maxPixelShift = 60; // Max Pixel Shift
@@ -151,9 +149,6 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
             const segmentWidth = 15;  // Square Block Size
 
             for (let y = 0; y < canvasHeight; y += sliceHeight) {
-                const sinPhase = y * verticalWaveFrequency + mousePos.y * mouseYSensitivity;
-                const sinValue = Math.sin(sinPhase);
-
                 const distYToMouse = Math.abs((y + sliceHeight / 2) - mousePos.y);
                 const verticalGaussInfluence = Math.exp(-Math.pow(distYToMouse / verticalInfluenceHeight, 2.0));
 
@@ -166,7 +161,16 @@ export default function DisintegratingImage({ src, alt, className }: Disintegrat
 
                     // Conditional Block Displacement
                     if (combinedInfluence > 0.05) {
-                        const currentPixelShift = amount * combinedInfluence * sinValue * maxPixelShift;
+                        // Calculate shift based on distance from center
+                        const centerX = canvasWidth / 2;
+                        const distanceFromCenter = Math.abs(segmentCenterX - centerX);
+                        const maxDistanceFromCenter = canvasWidth / 2;
+                        const normalizedDistance = distanceFromCenter / maxDistanceFromCenter;
+
+                        // Create a shift that moves both sides together
+                        // Left side moves left, right side moves right
+                        const direction = segmentCenterX < centerX ? -1 : 1;
+                        const currentPixelShift = amount * combinedInfluence * normalizedDistance * direction * maxPixelShift;
                         const idealGlobalSourceX = x - currentPixelShift;
 
                         let currentDrawDestX = x;
