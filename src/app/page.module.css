@@ -42,70 +42,7 @@
   gap: var(--default-offset);
   width: 100%;
 }
-
-.heroSection {
-  min-height: calc(100svh - var(--default-offset)*2);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-start;
-  overflow: hidden;
-  position: relative;
-  border-radius: var(--default-radius);
-  border-bottom-left-radius: 0;
-}
-
-.heroImage {
-  object-fit: cover;
-  object-position: center;
-  width: 100%;
-  height: 100%;
-}
-
-.heroTitle {
-  font-family: var(--font-accent);
-  font-size: 80px;
-  font-weight: 300;
-  position: relative;
-
-  .heroTitleName,
-  .heroTitleDescription {
-    display: inline-block;
-    background-color: var(--background);
-    padding-right: var(--default-offset);
-    border-top-right-radius: var(--default-radius);
-    position: relative;
-    min-height: 80px;
-    align-content: center;
-  }
-
-  .heroTitleDescription {
-    display: block;
-    font-size: 100px;
-    font-weight: 400;
-  }
-
-  ::after {
-    content: "";
-    position: absolute;
-    right: calc(-1 * var(--default-radius));
-    bottom: 0px;
-    width: var(--default-radius);
-    height: var(--default-radius);
-    background: url("/images/smooth-corners/left-bottom.svg") no-repeat center center;
-  }
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: calc(-1 * var(--default-radius));
-    left: 0px;
-    width: var(--default-radius);
-    height: var(--default-radius);
-    background: url("/images/smooth-corners/left-bottom.svg") no-repeat center center;
-  }
-}
-
+/* 
 .aboutSection {
   min-height: calc(100svh - var(--default-offset)*2);
   display: flex;
@@ -118,7 +55,7 @@
   h2 {
     font-weight: 600;
   }
-}
+} */
 
 .achievementsSection {
   display: grid;

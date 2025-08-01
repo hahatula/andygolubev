@@ -1,0 +1,13 @@
+.introSection {
+    min-height: calc(100svh - var(--default-offset)*2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    position: relative;
+    margin-left: var(--power-line-offset);
+  
+    .introTitle {
+        font-weight: 600;
+    }
+  }
