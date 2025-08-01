@@ -7,7 +7,7 @@
 .footerContainer {
     border-radius: 40px;
     padding: var(--default-offset);
-    min-height: 300px;
+    min-height: 360px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -56,7 +56,7 @@
 
 @media (width <=1520px) {
     .footerContainer {
-        min-height: 220px;
+        min-height: 240px;
 
         h2 {
             font-size: 40px;

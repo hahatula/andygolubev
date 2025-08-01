@@ -1,0 +1,13 @@
+.credits {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 var(--default-offset) 4px;
+    opacity: 0.4;
+}
+
+@media (width <=800px) {
+    .credits {
+        justify-content: center;
+    }
+}
