@@ -2,6 +2,11 @@ import { Article } from "@/types/articles";
 
 export const articles: Article[] = [
     {
+        id: "7",
+        slug: "aws-cloud-formation-doing-crazy",
+        title: "AWS Cloud Formation doing crazy",
+    },
+    {
         id: "6",
         slug: "monitoring-multiple-k8s-clusters-with-prometheus-and-grafana-deployed-using-terraform-and-ansible-role",
         title: "Monitoring multiple k8s clusters on Digital Ocean with Prometheus and Grafana deployed using Terraform and Ansible role",
