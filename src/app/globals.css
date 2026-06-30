@@ -42,6 +42,18 @@ a {
   text-decoration: none;
 }
 
+:not(pre) > code {
+  padding: 0.12em 0.35em;
+  border-radius: 0.3em;
+  background-color: #f6f8fa;
+  color: #24292f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9em;
+  line-height: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 h1, h2 {
   font-family: var(--font-accent), Arial, Helvetica, sans-serif !important;
   font-weight: 400;
@@ -53,6 +65,11 @@ h1, h2 {
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
+  }
+
+  :not(pre) > code {
+    background-color: #34373d;
+    color: #f0f3f6;
   }
 }
 

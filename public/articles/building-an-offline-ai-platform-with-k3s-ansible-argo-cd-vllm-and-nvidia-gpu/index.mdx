@@ -1,0 +1,191 @@
+# Building an Offline AI Platform with K3s, Ansible, Argo CD, vLLM, and NVIDIA GPU
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/article_title.png" alt="Building an offline AI platform with K3s, Ansible, Argo CD, vLLM, and NVIDIA GPU" />
+</figure>
+
+## Introduction
+
+Running Kubernetes in the cloud is straightforward when every node can reach package repositories, container registries, GitHub, and model hubs. The task becomes much more interesting when the target server has no internet connection at all.
+
+For this proof of concept, I wanted to build a self-contained AI platform on a single Ubuntu server. The final environment had to include:
+
+- K3s
+- NVIDIA GPU support
+- vLLM with a locally stored Qwen model
+- Argo CD and a local GitOps repository
+- A FastAPI and LangChain chatbot
+- Prometheus, Grafana, Loki, Tempo, and OpenTelemetry
+- k9s for local operations
+
+The target machine is an Ubuntu 26.04 AMD64 server with an NVIDIA A10G GPU. I used an EC2 `g5.2xlarge` instance for validation, but AWS is only a test harness. The installer itself does not provision infrastructure and does not depend on AWS.
+
+The important requirement was simple: after copying the bundle to the server, the installation must not make any external network request.
+
+## The two-environment design
+
+The solution separates preparation from installation. A connected machine downloads and packages everything. The isolated machine only consumes local files.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/01-two-environment-design.png" alt="Two-environment offline platform design" />
+</figure>
+
+This boundary is the main architectural decision. Instead of teaching every component how to tolerate a disconnected network, I move all network-dependent work to a controlled preparation phase.
+
+## Preparing the payload
+
+The repository provides one aggregate command:
+
+```bash
+cd offline-bundle
+./scripts/download-all-artifacts.sh
+```
+
+The script requires Docker and at least 50 GB of free space. On macOS and non-AMD64 systems, it uses an Ubuntu 26.04 AMD64 container so that downloaded packages match the target architecture.
+
+Each artifact group is handled by a specialized script. Completed steps have content and environment fingerprints, so an interrupted download can resume without rebuilding everything. A `--clean` option is available when a completely fresh payload is required.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/02-payload-preparation.png" alt="Offline payload preparation pipeline" />
+</figure>
+
+The generated `payload/` directory contains binaries, `.deb` packages, OCI image archives, Kubernetes manifests, tools, and model weights. It is generated locally and intentionally ignored by Git because it is large and reproducible.
+
+The model and vLLM image are the largest parts of the bundle. In this setup, the vLLM image is around 8 GB compressed and the Qwen2.5 7B model requires roughly 14–15 GB. Disk planning is not optional; the target installer checks for at least 80 GB of free space before it starts.
+
+## One command on the isolated server
+
+After preparing the payload, I copy the complete `offline-bundle/` directory to the target and run:
+
+```bash
+cd offline-bundle
+./install.sh
+```
+
+The installer elevates with `sudo`, verifies Ubuntu version and CPU architecture, checks free space, and validates the SHA256 checksum of every artifact. It then installs Ansible from local `.deb` files and runs a localhost playbook.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/03-offline-installation.png" alt="Offline installation sequence" />
+</figure>
+
+The playbook uses `ansible_connection=local`; SSH is not part of the installation design. The roles run in a deliberate order:
+
+1. Install K3s from its binary and air-gap image archive.
+2. Install the NVIDIA driver and container toolkit, then expose the GPU to Kubernetes.
+3. Start the local registry and Git mirror, then install Argo CD.
+4. Install k9s.
+5. Deploy the observability stack.
+6. Load the model and start vLLM.
+
+The installer and roles are idempotent. If a validation fails, I can correct the problem and run the same command again.
+
+## What runs inside the server
+
+The result is a complete platform on one machine. Some supporting services, such as the Git daemon, run on the host. Application and platform workloads run inside K3s.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/04-runtime-architecture.png" alt="Single-node K3s runtime architecture" />
+</figure>
+
+K3s imports its standard air-gap archive directly. Additional images are imported into containerd and pushed to a registry listening on `localhost:5000`. Workloads use local image references, and the vLLM deployment uses `imagePullPolicy: Never` as an extra guard against accidental pulls.
+
+The Qwen2.5-7B-Instruct snapshot is copied to `/opt/models` and mounted into the vLLM pod. vLLM exposes an OpenAI-compatible endpoint on port 8000 and gets the single `nvidia.com/gpu` resource advertised by the NVIDIA device plugin.
+
+## GitOps without GitHub
+
+Argo CD usually pulls desired state from an external Git provider. That is impossible in an isolated network, so the bundle creates bare repositories on the target and serves them with a read-only Git daemon.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/05-offline-gitops.png" alt="Offline GitOps reconciliation flow" />
+</figure>
+
+An in-cluster Service and Endpoints object exposes the host daemon as `git://git-mirror.gitops.svc.cluster.local`. Argo CD reads an app-of-apps repository from this address, discovers the agent application, and deploys its Helm chart.
+
+This keeps the GitOps reconciliation model even when the platform cannot reach GitHub. The offline bundle is the delivery mechanism; the local Git mirror becomes the runtime source of truth.
+
+## The local AI application
+
+To verify that the stack works as a platform rather than a collection of pods, I included a small chatbot. It uses FastAPI, LangChain, and `ChatOpenAI`, but points the client to the internal vLLM service instead of a public API.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/06-chat-request.png" alt="Local chatbot inference request sequence" />
+</figure>
+
+The application supports a system prompt and conversation history. It also adds an OpenTelemetry span around every model invocation. Optional Langfuse integration can be enabled when a reachable Langfuse instance and credentials are provided.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/chat.png" alt="Chatbot running against the local model" />
+</figure>
+
+I also tested the OpenAI-compatible endpoint with OpenCode. Pointing existing OpenAI clients at the local service is one of the useful properties of vLLM: applications do not need a custom inference protocol.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/opencode.png" alt="OpenCode using the local vLLM endpoint" />
+</figure>
+
+## Observing the model and the GPU
+
+An offline platform still needs normal operational visibility. The bundle includes a deliberately compact but complete stack:
+
+- Prometheus for metrics
+- Grafana for dashboards
+- Loki and Promtail for logs
+- Tempo for traces
+- OpenTelemetry Collector for OTLP ingestion
+- kube-state-metrics and node-exporter for Kubernetes and host metrics
+- NVIDIA DCGM exporter for GPU metrics
+
+Prometheus scrapes vLLM metrics such as running requests as well as GPU utilization from DCGM exporter. Grafana provisions Prometheus, Loki, and Tempo as datasources and loads a bundled vLLM/GPU dashboard automatically.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/grafana.png" alt="Grafana dashboard with vLLM and GPU metrics" />
+</figure>
+
+The following diagram shows how one chat request becomes all three telemetry signals:
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu/07-observability-flow.png" alt="Metrics, logs, and traces flow" />
+</figure>
+
+## Validation matters more in an air gap
+
+In a connected environment, a missing image or package may be downloaded later. In an isolated environment, a missing transitive dependency can stop the entire installation. For that reason, validation is part of the design rather than a final checklist.
+
+Before transfer, the preparation scripts verify the payload structure and checksums. During installation, the Ansible roles validate each layer before continuing. The acceptance checks include:
+
+- The K3s node reaches `Ready`.
+- The host reports the NVIDIA A10G with `nvidia-smi`.
+- Kubernetes reports `nvidia.com/gpu: 1` as allocatable.
+- The vLLM pod starts without an external image pull.
+- The model loads from `/opt/models/Qwen2.5-7B-Instruct`.
+- The `/v1/models` and chat completion APIs respond.
+- Argo CD applications synchronize from the local Git mirror.
+- Prometheus targets are reachable.
+- Grafana contains the provisioned datasources and dashboard.
+- Loki returns logs and Tempo returns the chatbot trace.
+
+The repository includes the exact commands in `offline-bundle/VALIDATION.md`, making the test procedure reproducible instead of relying on visual inspection alone.
+
+## Lessons learned
+
+The most difficult part of an offline Kubernetes installation is not K3s itself. It is the complete dependency graph around it: OS packages, container images, GPU kernel modules, tools, model files, manifests, and the runtime services that normally assume internet access.
+
+A few choices made the setup manageable:
+
+1. **Use one explicit network boundary.** All downloads happen on the preparation host; installation uses local files only.
+2. **Pin and record artifacts.** Image manifests and version files make the bundle understandable and reproducible.
+3. **Verify before transfer.** Checksums catch incomplete copies and corrupted large files before Ansible makes changes.
+4. **Keep the runtime local.** The registry, Git mirror, model storage, inference API, and telemetry backends all live on the target.
+5. **Validate each layer.** A running pod is not sufficient proof that the GPU, model API, GitOps reconciliation, and observability pipeline work together.
+
+This is a proof of concept and intentionally uses a single node. A production design would need decisions about high availability, storage redundancy, backup, security hardening, model lifecycle, and how signed bundle updates cross the air gap. Still, the project demonstrates that the same cloud-native workflows can operate in an isolated environment when artifact preparation is treated as a first-class part of the architecture.
+
+## Conclusion
+
+With a prepared payload and a local Ansible playbook, I can turn an isolated Ubuntu GPU server into a small AI platform using one installation command. K3s provides the runtime, Argo CD preserves the GitOps workflow, vLLM serves a local model, and the observability stack makes the result operable.
+
+The code is available in my GitHub repository: [github.com/andygolubev/ansible-k3s-on-prem](https://github.com/andygolubev/ansible-k3s-on-prem)
+
+Feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/andy-golubev/).
+
+I hope you enjoyed this article.
