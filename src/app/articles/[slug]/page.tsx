@@ -7,6 +7,7 @@ type MDXComponent = () => Promise<{ default: React.ComponentType }>;
 // 1. Static mapping from slug to MDX import
 const articleComponents: Record<string, MDXComponent> = {
     'automate-publishing-markdown-files-from-github-to-confluence-with-github-to-confluence-publisher-tool': () => import('@/../public/articles/automate-publishing-markdown-files-from-github-to-confluence-with-github-to-confluence-publisher-tool/index.mdx'),
+    'aws-cloud-formation-doing-crazy': () => import('@/../public/articles/aws-cloud-formation-doing-crazy/index.mdx'),
     'aws-serverless-image-recognition-telegram-bot-using-terraform': () => import('@/../public/articles/aws-serverless-image-recognition-telegram-bot-using-terraform/index.mdx'),
     'backup-tool-using-aws-batch-ecs-and-fargate-for-backuping-objects-from-other-clouds': () => import('@/../public/articles/backup-tool-using-aws-batch-ecs-and-fargate-for-backuping-objects-from-other-clouds/index.mdx'),
     'kubernetes-the-hard-way-on-aws-with-packer-and-terraform': () => import('@/../public/articles/kubernetes-the-hard-way-on-aws-with-packer-and-terraform/index.mdx'),
