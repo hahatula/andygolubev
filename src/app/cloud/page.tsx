@@ -1,4 +1,4 @@
-import styles from "./page.module.css";
+import styles from "../page.module.css";
 import HeroSection from "@/components/HeroSection/HeroSection";
 import IntroSection from "@/components/Intro/Intro";
 import Achievements from "@/components/Achievements/Achievements";
@@ -8,8 +8,8 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <HeroSection role="AI Solutions Architect" />
-        <IntroSection role="AI Solutions Architect" />
+        <HeroSection role="Cloud Solutions Architect" />
+        <IntroSection role="Cloud Solutions Architect" />
         <Achievements />
         <Articles />
       </main>
