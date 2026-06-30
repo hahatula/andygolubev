@@ -1,0 +1,30 @@
+%%{init: {"flowchart": {"htmlLabels": false, "curve": "basis"}, "theme": "base", "themeVariables": {"fontFamily": "Arial, sans-serif", "fontSize": "16px", "primaryTextColor": "#111827", "lineColor": "#374151"}}}%%
+flowchart TB
+    Reader["Benchmark operator"] --> Bench["vLLM bench serve\nprefix_repetition workload"]
+    Bench --> RR["Round-robin Service\nKubernetes ClusterIP"]
+    Bench --> EPP["llm-d EPP router\nprecise prefix-cache scorer"]
+
+    RR --> DecodeA["8 vLLM decode pods\n1 pod per A10G"]
+    EPP --> DecodeA
+
+    DecodeA --> KV["Independent KV caches\none per replica"]
+    DecodeA --> FSx["FSx for Lustre\nQwen2.5-7B-Instruct weights"]
+
+    GPU["EKS GPU node group\n8 x g5.xlarge\n1 x NVIDIA A10G each"] --> DecodeA
+    System["EKS system node\nm6i.4xlarge"] --> Bench
+    System --> EPP
+    System --> Obs["Prometheus and Grafana"]
+
+    GPUOperator["NVIDIA GPU Operator\nDevice plugin and DCGM exporter"] --> GPU
+    FSxCSI["FSx CSI driver\nstatic PV/PVC"] --> FSx
+    Obs --> Metrics["vLLM, Kubernetes, and GPU metrics"]
+
+    classDef compute fill:#eef6ff,stroke:#3b82f6,color:#111827
+    classDef storage fill:#f0fdf4,stroke:#16a34a,color:#111827
+    classDef route fill:#fff7ed,stroke:#f97316,color:#111827
+    classDef obs fill:#f5f3ff,stroke:#8b5cf6,color:#111827
+
+    class GPU,System,DecodeA compute
+    class FSx,KV storage
+    class RR,EPP,Bench route
+    class Obs,Metrics,GPUOperator,FSxCSI obs

@@ -59,6 +59,33 @@
     font-family: monospace;
 }
 
+.articleContainer table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 1.5rem 0 2rem;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.articleContainer th,
+.articleContainer td {
+    padding: 0.75rem 1rem;
+    border: 1px solid #d8dee4;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.articleContainer th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+}
+
+.articleContainer tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
 @media (max-width: 768px) {
     .articleContainer h1 {
         font-size: 2rem;
@@ -66,6 +93,10 @@
 
     .articleContainer h2 {
         font-size: 1.5rem;
+    }
+
+    .articleContainer table {
+        font-size: 0.9rem;
     }
 }
 

@@ -2,6 +2,16 @@ import { Article } from "@/types/articles";
 
 export const articles: Article[] = [
     {
+        id: "9",
+        slug: "building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu",
+        title: "Building an Offline AI Platform with K3s, Ansible, Argo CD, vLLM, and NVIDIA GPU",
+    },
+    {
+        id: "8",
+        slug: "how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster",
+        title: "How llm-d Prefix-Cache Routing Made Qwen 7B on EKS 2.3x Faster",
+    },
+    {
         id: "7",
         slug: "aws-cloud-formation-doing-crazy",
         title: "AWS Cloud Formation doing crazy",

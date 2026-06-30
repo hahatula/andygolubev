@@ -1,0 +1,11 @@
+flowchart LR
+    Req["Incoming prompts\n150 repeated prefixes"] --> Baseline{"Routing layer"}
+    Baseline -->|"Plain Service"| Random["Connection spread across replicas"]
+    Random --> Miss["Most prefixes land on replicas\nwithout resident KV blocks"]
+    Miss --> Prefill["Repeated prefill work"]
+    Prefill --> Queue["KV cache reaches about 99 percent\nwaiting queue builds"]
+
+    Baseline -->|"llm-d EPP"| Score["Prefix-cache-aware scorer"]
+    Score --> Hit["Route to replica that already\nhas matching prefix blocks"]
+    Hit --> Skip["Prefill mostly skipped"]
+    Skip --> Healthy["About 93 percent cache hits\nzero waiting queue\nhigher throughput"]
