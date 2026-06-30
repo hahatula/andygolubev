@@ -1,0 +1,203 @@
+# How llm-d Prefix-Cache Routing Made Qwen 7B on EKS 2.3x Faster
+
+**Date: 26 June 2026**
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/images/article_title_image.png" alt="llm-d prefix-cache routing benchmark on Amazon EKS" />
+</figure>
+
+## Introduction
+
+I wanted to benchmark how much the routing layer matters for LLM inference when the workload has repeated long prefixes.
+
+The setup was intentionally simple: Qwen2.5-7B-Instruct, vLLM, AWS EKS, FSx for Lustre, and eight `g5.xlarge` GPU nodes. Each node had one NVIDIA A10G GPU and ran one vLLM decode replica. The interesting part was the comparison in front of those same eight pods.
+
+One path used a plain Kubernetes ClusterIP Service, which effectively gives round-robin-style traffic distribution. The other path used llm-d with the precise prefix-cache-aware endpoint picker.
+
+The result was not small. With the same hardware and the same vLLM pods, llm-d finished the 512-concurrency benchmark in **358.7 seconds** instead of **840.2 seconds**. Output throughput went from **2,742 tok/s** to **6,423 tok/s**, and mean time to first token dropped from **19.0 seconds** to **0.86 seconds**.
+
+## The Problem
+
+vLLM has a KV cache. If many requests share the same long prefix, the best case is to reuse the cached prefix blocks instead of recomputing the prefill again and again.
+
+But there is a catch: each vLLM replica has its own KV cache.
+
+With plain round-robin routing, repeated-prefix requests are scattered across replicas. A request may land on a pod that has never seen that prefix before, even though another pod already has the right KV blocks. That means the cluster burns GPU time on repeated prefill work, fills KV cache, and eventually starts queueing requests.
+
+llm-d solves this specific problem by making routing aware of prefix-cache locality. In this benchmark, the llm-d endpoint picker routed prompts to the replica that was most likely to already hold the matching prefix blocks.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/images/grafana-round-robin.png" alt="Round-robin Grafana dashboard" />
+</figure>
+
+## Architecture
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/diagrams/architecture.svg" alt="Architecture diagram" />
+</figure>
+
+The benchmark cluster was built on AWS EKS in `us-west-2`.
+
+The main components were:
+
+- 8 x `g5.xlarge` GPU nodes, each with 1 x NVIDIA A10G 24 GB.
+- 1 x `m6i.4xlarge` system node for support workloads.
+- 8 vLLM decode pods, one per GPU node.
+- Qwen2.5-7B-Instruct weights mounted from FSx for Lustre.
+- NVIDIA GPU Operator for device plugin, DCGM exporter, validators, and GPU discovery.
+- kube-prometheus-stack for Prometheus and Grafana.
+- llm-d EPP router with precise prefix-cache routing.
+- A baseline Kubernetes Service named `vllm-roundrobin` that selected the same decode pods.
+
+The important detail is that both paths used the same eight vLLM decode pods. The only meaningful difference in the A/B test was the routing layer.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/images/schema.png" alt="Traffic flow from the vLLM benchmark client through round-robin and llm-d routing to the decode pods and FSx for Lustre" />
+</figure>
+
+## Realization
+
+The infrastructure was created with Terraform, then the cluster dependencies were installed with Helm and scripts:
+
+```bash
+./scripts/tf-init.sh
+./scripts/tf-apply.sh
+./scripts/update-kubeconfig.sh
+./scripts/install-gpu-operator.sh
+./scripts/install-fsx-csi-driver.sh
+./scripts/install-monitoring.sh
+```
+
+The model weights were not downloaded by the inference pod at runtime. They were already available on FSx for Lustre and mounted into the pods. This made pod restarts much faster and avoided pushing large model downloads into the benchmark path.
+
+For the llm-d test, I installed the precise prefix-cache routing stack and used the repo customization under `deploy/llm-d/`. The important pieces were:
+
+- `patch-vllm.yaml`: configured 1 GPU per replica, local FSx Qwen path, GPU scheduling, KV events over ZMQ, and `--block-size=64`.
+- `router.values.yaml`: configured the EPP router and precise prefix-cache scorer.
+- `fsx-pvc.yaml`: added a static FSx PV/PVC for the llm-d namespace.
+- `baseline-rr-service.yaml`: created the plain Kubernetes Service for the round-robin baseline.
+
+There were also a few practical gotchas:
+
+- The baseline vLLM deployment had to be scaled to zero while running the llm-d demo, otherwise it occupied one GPU and the eighth decode pod could not schedule.
+- The llm-d EPP pod needed a larger system node because its containers request enough CPU and memory that a tiny system node is not enough.
+- `enableServiceLinks: false` was important for vLLM pods, because Kubernetes service environment variables can collide with vLLM's own `VLLM_PORT`.
+- The vLLM `--block-size` and the router scorer block size had to match.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/images/grafana-8-node-overview.png" alt="8 node Grafana overview" />
+</figure>
+
+## Benchmark Setup
+
+The main benchmark used `vllm bench serve` with a repeated-prefix dataset:
+
+```text
+dataset: prefix_repetition
+prefixes: 150
+prefix length: 2048 tokens
+suffix length: 128 tokens
+output length: 256 tokens
+request rate: inf
+max concurrency: 512
+prompts: 9000
+```
+
+The benchmark was collected on 15 June 2026.
+
+I also ran a smaller rate ladder at requested rates of 20, 40, and 60 requests per second. That helped show where the round-robin path started saturating and where llm-d still had useful headroom.
+
+## Results
+
+Here is the 512-concurrency result:
+
+<table>
+  <thead>
+    <tr><th>Metric</th><th>Round-robin</th><th>llm-d</th><th>llm-d advantage</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Successful / failed requests</td><td>9000 / 0</td><td>9000 / 0</td><td>Same</td></tr>
+    <tr><td>Benchmark duration</td><td>840.2 s</td><td>358.7 s</td><td><strong>2.3x faster</strong></td></tr>
+    <tr><td>Request throughput</td><td>10.71 req/s</td><td>25.09 req/s</td><td><strong>+134%</strong></td></tr>
+    <tr><td>Output token throughput</td><td>2,742 tok/s</td><td>6,423 tok/s</td><td><strong>+134%</strong></td></tr>
+    <tr><td>Total token throughput</td><td>26,362 tok/s</td><td>61,748 tok/s</td><td><strong>+134%</strong></td></tr>
+    <tr><td>Mean TTFT</td><td>19,029 ms</td><td>863 ms</td><td><strong>-95%</strong></td></tr>
+    <tr><td>Median TTFT</td><td>18,458 ms</td><td>340 ms</td><td><strong>-98%</strong></td></tr>
+    <tr><td>P99 TTFT</td><td>36,739 ms</td><td>12,544 ms</td><td><strong>-66%</strong></td></tr>
+    <tr><td>Mean TPOT</td><td>109.2 ms</td><td>75.3 ms</td><td><strong>-31%</strong></td></tr>
+    <tr><td>P99 TPOT</td><td>157.4 ms</td><td>111.0 ms</td><td><strong>-29%</strong></td></tr>
+    <tr><td>Prefix cache hit rate</td><td>about 11%</td><td>about 93%</td><td>Much higher</td></tr>
+    <tr><td>GPU KV cache usage</td><td>about 98-99%</td><td>about 64-71%</td><td>Avoided saturation</td></tr>
+    <tr><td>Waiting requests</td><td>about 180</td><td>0</td><td>Queue removed</td></tr>
+  </tbody>
+</table>
+
+The rate ladder showed the same shape:
+
+<table>
+  <thead>
+    <tr><th>Requested rate</th><th>Endpoint</th><th>Achieved req/s</th><th>Output tok/s</th><th>Mean TTFT</th><th>P99 TTFT</th><th>Mean TPOT</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>20 req/s</td><td>Round-robin</td><td>7.05</td><td>1,805.9</td><td>3,338.5 ms</td><td>17,075.5 ms</td><td>78.5 ms</td></tr>
+    <tr><td>20 req/s</td><td>llm-d</td><td>11.85</td><td>3,034.4</td><td>514.0 ms</td><td>1,142.9 ms</td><td>52.8 ms</td></tr>
+    <tr><td>40 req/s</td><td>Round-robin</td><td>8.57</td><td>2,192.7</td><td>22,055.0 ms</td><td>56,710.0 ms</td><td>99.9 ms</td></tr>
+    <tr><td>40 req/s</td><td>llm-d</td><td>22.64</td><td>5,795.0</td><td>1,901.0 ms</td><td>5,585.9 ms</td><td>76.5 ms</td></tr>
+    <tr><td>60 req/s</td><td>Round-robin</td><td>8.90</td><td>2,278.1</td><td>41,661.2 ms</td><td>90,767.7 ms</td><td>104.3 ms</td></tr>
+    <tr><td>60 req/s</td><td>llm-d</td><td>21.52</td><td>5,507.9</td><td>3,496.8 ms</td><td>8,605.3 ms</td><td>122.3 ms</td></tr>
+  </tbody>
+</table>
+
+Round-robin saturated very early. Even when I requested 40 or 60 req/s, it only delivered about 8 to 9 req/s. TTFT then collapsed into tens of seconds.
+
+llm-d did not make the GPUs infinitely fast, of course. Eight A10Gs still have a real ceiling. But it moved the useful ceiling much higher because it avoided a large amount of repeated prefill work.
+
+## Why llm-d Won
+
+The workload had 150 repeated long prefixes. That is exactly the kind of traffic where cache locality matters.
+
+Round-robin distributed requests without knowing which replica had which prefix in its KV cache. So requests kept forcing prefills on replicas that did not need to do that work if traffic had been routed differently.
+
+With llm-d, vLLM emitted KV events and the router used those events to build a prefix-cache-aware view of the replicas. When the next request arrived, the endpoint picker could prefer the replica that already had the relevant prefix blocks.
+
+The result:
+
+- Prefix cache hit rate increased from about 11% to about 93%.
+- Waiting requests dropped from about 180 to zero.
+- KV cache stayed around 64-71% instead of pinning near 99%.
+- Output throughput more than doubled.
+- Mean TTFT dropped by about 95%.
+
+The most interesting part is that this was not a model change, GPU change, or replica-count change. It was the routing layer.
+
+<figure style={{ margin: "2rem 0" }}>
+  <img src="/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/images/nvidia-smi-load.png" alt="NVIDIA SMI during load" />
+</figure>
+
+## Notes From The Run
+
+The vLLM logs showed the llm-d path running with no waiting queue while the prefix hit rate warmed up:
+
+```text
+Running: 64 reqs, Waiting: 0 reqs, GPU KV cache usage: 62.1%, Prefix cache hit rate: 63.5%
+Running: 68 reqs, Waiting: 0 reqs, GPU KV cache usage: 68.9%, Prefix cache hit rate: 66.4%
+Running: 76 reqs, Waiting: 0 reqs, GPU KV cache usage: 70.1%, Prefix cache hit rate: 72.7%
+```
+
+The final aggregate showed a wider P99 TTFT than the steady-state Grafana view, because the beginning of the run included cold-cache ramp-up. After the cache warmed, the median TTFT was 340 ms and the steady-state dashboard showed the system serving 512-concurrency traffic without queue buildup.
+
+There was also an FSx CSI controller warning about missing `DescribeFileSystems` permission. In this setup it was not blocking, because I used static FSx PV/PVC configuration. The file system identity and mount details were already known, so dynamic FSx discovery was not part of the benchmark path.
+
+## Conclusion
+
+This benchmark was a good reminder that LLM inference performance is not only about the GPU count.
+
+For repeated-prefix workloads, the routing layer can decide whether the cluster reuses KV cache or recomputes the same long prefixes again and again. In this run, llm-d precise prefix-cache routing made the same 8 x A10G fleet finish the workload **2.3x faster**, while cutting mean TTFT by **95%**.
+
+If your traffic has shared system prompts, long common instructions, retrieval templates, chat prefixes, or agent scaffolding, round-robin routing can quietly waste a lot of GPU time. Prefix-cache-aware routing is one of those changes that looks small in the architecture diagram but very large in the benchmark results.
+
+I hope you enjoyed this article.
+
+You can find all of my code in my GitHub repository: [https://github.com/andygolubev/aws-eks-inference-llmd-vllm-benchmark-qwen-7b](https://github.com/andygolubev/aws-eks-inference-llmd-vllm-benchmark-qwen-7b)
+
+Feel free to connect with me on LinkedIn: [https://www.linkedin.com/in/andy-golubev/](https://www.linkedin.com/in/andy-golubev/)
