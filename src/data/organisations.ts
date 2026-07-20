@@ -47,14 +47,23 @@ export const organisations: Organisation[] = [
         link: "https://www.antiquities.org.il"
     },
     {
-        id: "STADIK",
-        name: "STADIK",
-        bussinessField: "Digital transformation",
-        country: "UAE",
-        logo: "/images/organisations/color/stadik.svg",
-        logoBw: "/images/organisations/stadik.svg",
-        link: "https://www.stadik-group.com/"
+        id: "Rhino",
+        name: "Rhino",
+        bussinessField: "Federated ML",
+        country: "USA/Israel",
+        logo: "/images/organisations/color/rhino.svg",
+        logoBw: "/images/organisations/rhino.svg",
+        link: "https://www.rhinofcp.com/"
     },
+    // {
+    //     id: "STADIK",
+    //     name: "STADIK",
+    //     bussinessField: "Digital transformation",
+    //     country: "UAE",
+    //     logo: "/images/organisations/color/stadik.svg",
+    //     logoBw: "/images/organisations/stadik.svg",
+    //     link: "https://www.stadik-group.com/"
+    // },
     {
         id: "Ameriabank",
         name: "Ameriabank",
