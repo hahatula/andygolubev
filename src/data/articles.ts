@@ -2,6 +2,11 @@ import { Article } from "@/types/articles";
 
 export const articles: Article[] = [
     {
+        id: "10",
+        slug: "Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload",
+        title: "Sim2Policy: the serverless RL platform that trains the robot you upload",
+    },
+    {
         id: "9",
         slug: "building-an-offline-ai-platform-with-k3s-ansible-argo-cd-vllm-and-nvidia-gpu",
         title: "Building an Offline AI Platform with K3s, Ansible, Argo CD, vLLM, and NVIDIA GPU",

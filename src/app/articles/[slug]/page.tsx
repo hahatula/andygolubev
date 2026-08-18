@@ -14,6 +14,7 @@ const articleComponents: Record<string, MDXComponent> = {
     'how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster': () => import('@/../public/articles/how-llm-d-prefix-cache-routing-made-qwen-7b-on-eks-2-3x-faster/index.mdx'),
     'kubernetes-the-hard-way-on-aws-with-packer-and-terraform': () => import('@/../public/articles/kubernetes-the-hard-way-on-aws-with-packer-and-terraform/index.mdx'),
     'monitoring-multiple-k8s-clusters-with-prometheus-and-grafana-deployed-using-terraform-and-ansible-role': () => import('@/../public/articles/monitoring-multiple-k8s-clusters-with-prometheus-and-grafana-deployed-using-terraform-and-ansible-role/index.mdx'),
+    'Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload': () => import('@/../public/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/index.mdx'),
     'terraform-and-digitalocean-automating-infrastructure-and-catching-the-hidden-load-balancer': () => import('@/../public/articles/terraform-and-digitalocean-automating-infrastructure-and-catching-the-hidden-load-balancer/index.mdx'),
 };
 
