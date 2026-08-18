@@ -17,6 +17,27 @@
     display: inline-block;
 }
 
+.showMoreButton {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 400;
+    text-decoration: underline;
+    opacity: 0.8;
+    cursor: pointer;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.showMoreButton:hover,
+.showMoreButton:focus-visible {
+    opacity: 1;
+}
+
 @media (width <=1520px) {
     .articlesTitle {
         font-size: 40px;

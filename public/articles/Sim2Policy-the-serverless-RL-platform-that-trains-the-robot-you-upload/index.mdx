@@ -1,0 +1,263 @@
+# Sim2Policy: The Serverless RL Platform That Trains the Robot You Upload
+
+That is **Sim2Policy**, my entry for the **Nebius Serverless Challenge 2026**.
+
+- **Live:** [sim-policy-trainer-challenge.info](https://sim-policy-trainer-challenge.info) (free, no credit card, running until the end of August 2026)
+- **Repository:** [github.com/andygolubev/nebius-serverless-challenge-2026](https://github.com/andygolubev/nebius-serverless-challenge-2026) (MIT)
+
+![Sim2Policy — watch robots learn to move](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/hero.jpg)
+
+## 🏆 It won an Awesome Serverless award
+
+Nebius ran the first **Serverless AI Builder's Challenge** this year, and **Sim2Policy was selected
+as an Awesome Serverless award winner** — a *Nebius Serverless AI Champion* badge and a $1,000 AI
+Cloud grant.
+
+[See the badge on Credly →](https://www.credly.com/badges/92f54030-a24e-479e-ad78-01b7795294cb)
+
+Everything below is the project that won it. It is still live, still free, and it will train your
+robot too.
+
+## The idea
+
+Training a robot policy in the cloud is easy. Keeping the *proof* after the machine vanishes is
+hard. Serverless GPU jobs spin up, train, and disappear — and usually take the evidence with them.
+
+Sim2Policy fixes that. Each run trains a policy on a bounded Serverless AI Job and leaves behind a
+durable, reproducible result. You never touch a GPU, an image, or a config file — you just pick an
+example and watch it learn.
+
+Every run leaves behind:
+
+- **A trained checkpoint** — the policy, saved before the job exits.
+- **A rollout video** — the robot going from wobbling to walking.
+- **Evaluation metrics** — reward, episode length, runtime, and cost, measured on the job itself.
+- **A downloadable policy bundle** — checkpoint, config, versions, and checksums in one file.
+
+Under the hood there are two training engines behind the same simple button: a dependable CPU path
+for the classic control robots, and a GPU-parallel path for the big quadruped and humanoid. You
+never have to know which one ran — the platform picks it for you.
+
+## Seven robots, already trained
+
+The landing page is a gallery of runs that already happened. Anyone can browse it — no account, no
+sign-up — and every card carries the backend that ran it and the success criterion it was judged
+against.
+
+![The Sim2Policy gallery: seven verified training runs](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/gallery.jpg)
+
+Here is what those seven runs actually cost me, straight off the jobs:
+
+| Run | Backend | Steps | Duration | Cost | Result |
+| --- | --- | --: | --: | --: | --- |
+| **Go1 Walker** | MJX · H100 | 200,000,000 | 16m 48s | **$0.83** | ✅ velocity 0.97 ≥ 0.5 |
+| G1 Rough Terrain | MJX · H100 | 250,511,360 | 1h 45m | $2.73 | ✅ velocity 0.74 ≥ 0.4 |
+| Walker2D Stride | SB3 · CPU | 5,000,000 | 29m 32s | $0.10 | ✅ reward 5,314 ≥ 1,800 |
+| Hopper Balance | SB3 · CPU | 5,000,000 | 21m 00s | $0.07 | ✅ reward 3,632 ≥ 1,000 |
+| Ant Explorer | SB3 · CPU | 3,000,000 | 21m 34s | $0.07 | ✅ reward 2,975 ≥ 1,000 |
+| HalfCheetah Sprint | SB3 · CPU | 3,000,000 | 12m 41s | $0.04 | ✅ reward 3,332 ≥ 1,500 |
+| Reacher Target | SB3 · CPU | 1,000,000 | 2m 53s | **$0.01** | ✅ reward −5.6 ≥ −10 |
+
+**$3.84 for the whole gallery** — the sum of the unrounded per-run costs, so it lands a cent
+under the column above. The flagship Go1 quadruped trained 200 million simulation steps on a
+single Nebius **H100** in under seventeen minutes for **83 cents**. This is real GPU
+reinforcement learning at coffee-money prices.
+
+## What "a result" means here
+
+Click any card and you get the whole evidence trail: the criterion, the primary metric, the observed
+duration and cost, a rollout video, the full evaluation, and a one-click policy bundle — all pinned
+to the exact acceptance revision that published it.
+
+![Go1 Walker result: KPIs, rollout video, and evaluation](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/go1-result.jpg)
+
+## The run that failed for two reasons, neither of them training
+
+The G1 humanoid sat in that gallery for weeks as a *recording*, with `success: false` printed on
+the page. It crossed rough ground at 0.86 m/s — comfortably past the 0.4 velocity bar — and then
+fell, in all twenty evaluation episodes. The criterion says *velocity **and** not fallen*. Zero
+clean finishes.
+
+The obvious reading of "0/20 upright" is an undertrained policy, and the obvious fix is more steps.
+348 million steps and $3.24 had already bought exactly nothing on that metric. Here is why.
+
+**First, the robot ran out of world.** The rough-terrain scene I had inherited is a *finite* 20 m ×
+20 m height field, and the episode spawns dead centre. An episode is 1,000 steps at 20 ms, so
+20 seconds. At the commanded 0.8–1.0 m/s the robot must cover 16–20 m; the farthest point on
+that patch is 14.14 m away, diagonally. **No policy could have finished an episode** — every run
+walked off the edge of the terrain and fell into nothing. Worse, training was making it *worse*:
+over the same checkpoints, velocity climbed from 0.75 to 0.96 m/s, which just got the robot to
+the edge sooner. The fix was a server-owned 60 m × 60 m scene, plus an invariant that now refuses
+to launch any config where `velocity × horizon × timestep` exceeds the worst-case distance to the
+edge.
+
+**Second, nothing paid it to stay upright.** The pinned G1 reward scores velocity tracking and
+charges −100 once, on termination, with discounting at 0.97 per 20 ms step — a **0.67-second**
+lookahead. A fall five seconds out discounts to 5e-4; the critic cannot see it coming, and the
+penalty arrives as noise. The other humanoid in the very same package is configured the opposite
+way: a small per-step `alive` bonus and *no* termination penalty. Adopting that pair took the flat
+transition gate from 8/10 episodes to 10/10, and rough acceptance from nothing to 20/20.
+
+![G1 Rough Terrain: 250M steps, 1h 45m, $2.73 — and 20 clean finishes](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/g1-result.jpg)
+
+0.74 m/s, twenty full-horizon episodes, zero falls, $2.73. Both fixes changed the *problem*, not
+the budget — and I only found them because the failing run stayed published, with its real
+numbers, long enough to be argued with. A platform that only shows you its wins is a brochure,
+not an experiment log.
+
+## Now bring your own robot
+
+The gallery is the demo. The product is the next part: give an email, get a personal space, and
+train **your** robot. Here is the whole flow, run end to end on the live site.
+
+### 1 — Validate a model
+
+Upload one self-contained MJCF file, up to 1 MiB. The validator rejects DTDs and entities before it
+even parses, then archives, includes, plugins, meshes, textures, height fields, external paths, and
+any non-primitive geometry. What comes back is a SHA-256 digest and a structural summary — bodies,
+joints, actuators, geoms — so you know exactly what the server accepted.
+
+![My Robots: validate an MJCF model against the same validator the samples use](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/my-robots.jpg)
+
+Two primitive-only sample robots are downloadable right there, and they run through the *same*
+validator as your upload, so there is no privileged path.
+
+### 2 — Compose an environment
+
+A robot model is not a training environment. It describes bodies and joints; it says nothing about
+observations, rewards, termination, or evaluation. So the setup builder keeps those server-owned:
+you pick a **locomotion task**, a **scene preset**, and up to six bounded catalog objects.
+
+![The environment builder: server-owned tasks, scenes, and bounded primitives](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/environment-builder.jpg)
+
+No reward code, no scene XML, no remote URLs, no uploaded meshes. You get choices, not footguns —
+and because every choice comes from a published catalog, validation stays deterministic.
+
+### 3 — Prepare, then train
+
+Before the Start Training button unlocks, a **bounded CPU job** actually compiles your robot in the
+server-owned scene, runs deterministic rollout and render gates, checks the Gymnasium/SB3 contract,
+and smoke-tests a PPO save/reload. It took about four minutes for mine.
+
+![Preparation running, then a prepared setup ready to train](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/prepare-and-ready.jpg)
+
+Preparation means *technically compatible*, not *guaranteed to converge*. That distinction is the
+whole reason the gate exists: it fails fast and cheap on a broken model instead of burning a full
+training budget to discover the same thing.
+
+Then you press **Start training** — and that is the only way a custom job is ever created. The API
+endpoint takes the setup identity and an idempotency key, and nothing else. Backend, algorithm,
+hardware, image, command, and PPO settings are all rejected with a 422 if you try to send them.
+
+![A custom training job moving through its lifecycle on Nebius](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/job-running.jpg)
+
+### 4 — Get your result
+
+Under twenty minutes later — queue, train, render, evaluate — the same evidence page the gallery
+runs get, for a robot the server had never seen before:
+
+![The finished custom run: metrics, rollout video, and a downloadable policy bundle](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/custom-result.jpg)
+
+| | |
+| --- | --- |
+| Robot | uploaded quadruped, 9 bodies · 9 joints · 8 actuators |
+| Profile | `custom-ppo-quick-v3` — 3,000,000 steps, 16 parallel envs |
+| Compute | Nebius `cpu-d3` · `16vcpu-64gb` |
+| Training runtime | 15m 39s |
+| **Cost** | **$0.10** |
+| Evaluation | 20 episodes · mean reward 4,819 ± 17 · fall rate 0% |
+| Verdict | **Task threshold met** — success rate 100% |
+
+It walks. Twenty of twenty evaluation episodes run the full 1,000-step horizon, none of them falls,
+and the gait averages **0.83 m/s** for 16.7 m of forward progress per episode. The spread is
+tiny — 0.821 to 0.843 m/s across all twenty — which is the part that actually says "gait" rather
+than "lucky episode".
+
+![One gait cycle of the uploaded quadruped: feet under the body, one leg swinging](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/custom-rollout.jpg)
+
+**That 100% is the number I had to earn, and not with training budget.** "Walk forward" is scored by
+a server-owned reward contract, and three separate times that contract certified something that was
+not walking:
+
+- a policy that **stood still** on the centre line, because being on the line paid a bonus;
+- a policy that **knelt**, because body height was the only posture signal — and a quadruped on
+  its knees is exactly as tall as one on its feet;
+- a policy that did the **splits**, because adding "the feet are what touch the floor" still never
+  said the feet were *underneath* the robot.
+
+Every one of those passed every check that existed when it ran. The fix was a third measurement:
+the horizontal distance from each foot to the joint carrying its leg, as a fraction of that leg's
+reach. Feet under the hips reads 0.00–0.27. A trot reads 0.29. The splits reads **0.82**. Nothing
+else in the contract could tell them apart — and the run above sits at 0.25.
+
+One honest note that no amount of tuning fixes: it walks in a deep crouch, 0.32 m of body height on
+0.59 m of leg. Every joint on this hand-made quadruped is a pitch hinge, so the only way it can
+correct a sideways lean is to extend one side's legs further than the other's — which works worst
+when the legs are straight. I tested raising the height target; the robot ignored the taller ask,
+leaned instead, and walk-forward dropped to 15/20. The crouch is the morphology, not the reward.
+
+Ten cents and sixteen minutes of compute for a policy, a video, and twenty episodes of evidence —
+which is precisely what a cheap, bounded, disposable job is *for*. The policy bundle is right there:
+checkpoint, resolved configuration, evaluation, versions and checksums, 1.7 MiB, one click. And the
+checkpoint inside it is the *best* one the run produced, not whichever one happened to be last.
+
+## The architecture
+
+A tiny always-on VM in the Nebius cloud runs the app and launches disposable training jobs. The user
+stays in the browser. The cloud does the rest.
+
+![Sim2Policy cloud architecture on Nebius](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/architecture.png)
+
+The control plane is one `saas-server` VM running single-node **k3s** with **ArgoCD**. GitHub
+Actions builds the app image, pushes it to the Nebius registry with an immutable tag, and commits
+that tag to the deploy manifests; ArgoCD reconciles it. Secrets come from **MysteryBox** into
+Kubernetes Secrets through root-owned reconcilers, so nothing sensitive lives in Git. All of it —
+registry, bucket, least-privilege identity, VM, security group — is **OpenTofu**.
+
+The data plane is entirely ephemeral. There is no training cluster to keep warm.
+
+## Under the hood
+
+- **Simulation:** MuJoCo through Gymnasium, and MuJoCo Playground / **MJX on JAX** for GPU-parallel
+  physics.
+- **Learning:** **PPO** — Stable-Baselines3 on CPU for the classic robots and for uploaded models,
+  Brax PPO on GPU for the Go1 and G1.
+- **Hardware:** NVIDIA **H100** and **L40S** for the JAX path; `cpu-d3` shapes for classic control
+  and custom robots. Each job gets the right one automatically.
+- **Platform:** FastAPI + React on single-node **k3s**, deployed by **ArgoCD**, provisioned by
+  **OpenTofu** on Nebius.
+
+**How a run works:** the job runs PPO for a fixed number of steps, checkpoints to S3 as it goes,
+then renders rollout videos and runs a deterministic evaluation before publishing the result. A
+checkpoint is uploaded completely before `latest.json` advances, so an interrupted job resumes
+instead of starting over.
+
+**What you can configure:** for the gallery, the example and an optional seed. For your own robot,
+the locomotion task, a scene preset, and a few bounded objects. Everything else stays server-side.
+
+## Why serverless was the right call
+
+The training plane has no idle cost. Seven gallery runs, a preparation gate, and a custom training
+job — every one of them a job that started, did its work, wrote its artifacts to S3, and vanished.
+The only thing running around the clock is one small VM serving a web app.
+
+That is the shape I would want for any research workload: durable artifacts, disposable compute,
+and a bill that matches the work actually done.
+
+## Conclusion
+
+With one hosted button and a bounded serverless job, I can turn an uploaded MJCF file into a trained
+locomotion policy, a rollout video, and a downloadable bundle — without the user ever touching a
+GPU, an image, or a config file. Nebius Serverless AI Jobs supply the compute, k3s and Argo CD keep
+the control plane reconciled, OpenTofu provisions the whole account, and S3 makes every run outlive
+the machine that produced it.
+
+The code is available in my
+[GitHub repository](https://github.com/andygolubev/nebius-serverless-challenge-2026), including the
+OpenTofu stack, the GitOps manifests, and the behavioural specs.
+
+Feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/andy-golubev/).
+
+I hope you enjoyed this article.
+
+`#NebiusServerlessChallenge`

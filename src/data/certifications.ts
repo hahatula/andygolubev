@@ -78,5 +78,12 @@ export const certifications: Certification[] = [
         logo: "/images/certifications/Certified-Kubernetes-Application-Developer-(CKAD).png",
         logoBw: "/images/certifications/bw-Certified-Kubernetes-Application-Developer-(CKAD).png",
         link: "https://www.credly.com/badges/6e668058-8e84-48e1-a71c-9cbd97a02ded"
+    },
+    {
+        id: "Nebius AI Cloud Ops",
+        name: "Nebius AI Cloud Ops Engineer",
+        logo: "/images/certifications/Nebius-AI-Cloud-Ops.png",
+        logoBw: "/images/certifications/bw-Nebius-AI-Cloud-Ops.png",
+        link: "https://www.credly.com/badges/71014cb8-1735-490d-86dc-3370d920eab3"
     }
 ];
