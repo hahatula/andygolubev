@@ -1,0 +1,102 @@
+.aiExpertiseSection {
+    border-radius: var(--default-radius);
+    background-image: url("/images/sky/orgsky.jpg");
+    margin-bottom: 400px;
+}
+
+.aiExpertiseTitle {
+    font-size: 60px;
+    padding: 10px 0;
+    display: inline-block;
+    background-color: var(--background);
+    position: relative;
+    min-height: 80px;
+    align-content: center;
+    padding-right: var(--default-offset);
+    border-bottom-right-radius: 40px;
+
+    &::before {
+        content: "";
+        position: absolute;
+        bottom: -40px;
+        left: 0px;
+        width: 40px;
+        height: 40px;
+        background: url("/images/smooth-corners/left-top.svg") no-repeat center center;
+    }
+
+    &::after {
+        content: "";
+        position: absolute;
+        right: -40px;
+        top: 0px;
+        width: 40px;
+        height: 40px;
+        background: url("/images/smooth-corners/left-top.svg") no-repeat center center;
+    }
+}
+
+.aiExpertiseCards {
+    display: grid;
+    grid-template-columns: 50% calc(50% - var(--default-offset));
+    gap: var(--default-offset);
+    padding: calc(var(--default-offset) * 2);
+}
+
+.aiExpertiseCard {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: var(--background);
+    padding: var(--default-offset);
+    padding-bottom: calc(var(--default-offset) * 2);
+    border-radius: var(--default-radius);
+
+    &:first-child {
+        grid-row: span 2;
+        margin-left: calc(var(--power-line-offset) - var(--default-offset) * 2);
+        min-height: 475px;
+    }
+
+    &:nth-child(3) {
+        grid-row: span 2;
+    }
+
+    h3 {
+        font-size: 32px;
+        font-weight: 400;
+    }
+
+    a {
+        text-decoration: underline;
+    }
+}
+
+@media (width <=1520px) {
+    .aiExpertiseTitle {
+        font-size: 40px;
+    }
+}
+
+@media (width <=1200px) {
+    .aiExpertiseCard:first-child {
+        margin-left: 0;
+    }
+}
+
+@media (width <=800px) {
+    .aiExpertiseCards {
+        display: flex;
+        flex-direction: column;
+        padding: var(--default-offset);
+    }
+    .aiExpertiseCard:first-child {
+        min-height: auto;
+    }
+}
+
+@media (width <=580px) {
+    .aiExpertiseTitle {
+        font-size: 30px;
+    }
+}
