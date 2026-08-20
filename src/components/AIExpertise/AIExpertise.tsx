@@ -1,4 +1,5 @@
 import styles from "./AIExpertise.module.css";
+import Link from "next/link";
 
 export default function AIExpertise() {
     return <section className={styles.aiExpertiseSection}>
@@ -10,7 +11,7 @@ export default function AIExpertise() {
             </div>
             <div className={styles.aiExpertiseCard}>
                 <h3 className={styles.aiExpertiseCardTitle}>Serverless AI Builder’s Challenge Winner</h3>
-                <p className={styles.aiExpertiseCardDescription}>Recognized with an Awesome Serverless Award for <a href="https://github.com/andygolubev/nebius-serverless-challenge-2026" target="_blank" rel="noopener noreferrer">Sim2Policy</a> — an NVIDIA H100-powered platform that trains robots in simulation using Nebius Serverless Jobs.</p>
+                <p className={styles.aiExpertiseCardDescription}>Recognized with an Awesome Serverless Award for <Link href="/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload" target="_blank">Sim2Policy</Link> — an NVIDIA H100-powered platform that trains robots in simulation using Nebius Serverless Jobs.</p>
             </div>
             <div className={styles.aiExpertiseCard}>
                 <h3 className={styles.aiExpertiseCardTitle}>Production AI Implementation</h3>

@@ -1,11 +1,13 @@
 # Sim2Policy: The Serverless RL Platform That Trains the Robot You Upload
 
+**Date: 14 August 2026**
+
+![Sim2Policy — watch robots learn to move](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/hero.jpg)
+
 That is **Sim2Policy**, my entry for the **Nebius Serverless Challenge 2026**.
 
 - **Live:** [sim-policy-trainer-challenge.info](https://sim-policy-trainer-challenge.info) (free, no credit card, running until the end of August 2026)
 - **Repository:** [github.com/andygolubev/nebius-serverless-challenge-2026](https://github.com/andygolubev/nebius-serverless-challenge-2026) (MIT)
-
-![Sim2Policy — watch robots learn to move](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/hero.jpg)
 
 ## 🏆 It won an Awesome Serverless award
 
@@ -48,15 +50,76 @@ against.
 
 Here is what those seven runs actually cost me, straight off the jobs:
 
-| Run | Backend | Steps | Duration | Cost | Result |
-| --- | --- | --: | --: | --: | --- |
-| **Go1 Walker** | MJX · H100 | 200,000,000 | 16m 48s | **$0.83** | ✅ velocity 0.97 ≥ 0.5 |
-| G1 Rough Terrain | MJX · H100 | 250,511,360 | 1h 45m | $2.73 | ✅ velocity 0.74 ≥ 0.4 |
-| Walker2D Stride | SB3 · CPU | 5,000,000 | 29m 32s | $0.10 | ✅ reward 5,314 ≥ 1,800 |
-| Hopper Balance | SB3 · CPU | 5,000,000 | 21m 00s | $0.07 | ✅ reward 3,632 ≥ 1,000 |
-| Ant Explorer | SB3 · CPU | 3,000,000 | 21m 34s | $0.07 | ✅ reward 2,975 ≥ 1,000 |
-| HalfCheetah Sprint | SB3 · CPU | 3,000,000 | 12m 41s | $0.04 | ✅ reward 3,332 ≥ 1,500 |
-| Reacher Target | SB3 · CPU | 1,000,000 | 2m 53s | **$0.01** | ✅ reward −5.6 ≥ −10 |
+<table>
+  <thead>
+    <tr>
+      <th>Run</th>
+      <th>Backend</th>
+      <th>Steps</th>
+      <th>Duration</th>
+      <th>Cost</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Go1 Walker</strong></td>
+      <td>MJX · H100</td>
+      <td>200,000,000</td>
+      <td>16m 48s</td>
+      <td><strong>$0.83</strong></td>
+      <td>✅ velocity 0.97 ≥ 0.5</td>
+    </tr>
+    <tr>
+      <td>G1 Rough Terrain</td>
+      <td>MJX · H100</td>
+      <td>250,511,360</td>
+      <td>1h 45m</td>
+      <td>$2.73</td>
+      <td>✅ velocity 0.74 ≥ 0.4</td>
+    </tr>
+    <tr>
+      <td>Walker2D Stride</td>
+      <td>SB3 · CPU</td>
+      <td>5,000,000</td>
+      <td>29m 32s</td>
+      <td>$0.10</td>
+      <td>✅ reward 5,314 ≥ 1,800</td>
+    </tr>
+    <tr>
+      <td>Hopper Balance</td>
+      <td>SB3 · CPU</td>
+      <td>5,000,000</td>
+      <td>21m 00s</td>
+      <td>$0.07</td>
+      <td>✅ reward 3,632 ≥ 1,000</td>
+    </tr>
+    <tr>
+      <td>Ant Explorer</td>
+      <td>SB3 · CPU</td>
+      <td>3,000,000</td>
+      <td>21m 34s</td>
+      <td>$0.07</td>
+      <td>✅ reward 2,975 ≥ 1,000</td>
+    </tr>
+    <tr>
+      <td>HalfCheetah Sprint</td>
+      <td>SB3 · CPU</td>
+      <td>3,000,000</td>
+      <td>12m 41s</td>
+      <td>$0.04</td>
+      <td>✅ reward 3,332 ≥ 1,500</td>
+    </tr>
+    <tr>
+      <td>Reacher Target</td>
+      <td>SB3 · CPU</td>
+      <td>1,000,000</td>
+      <td>2m 53s</td>
+      <td><strong>$0.01</strong></td>
+      <td>✅ reward −5.6 ≥ −10</td>
+    </tr>
+  </tbody>
+</table>
 
 **$3.84 for the whole gallery** — the sum of the unrounded per-run costs, so it lands a cent
 under the column above. The flagship Go1 quadruped trained 200 million simulation steps on a
@@ -158,15 +221,38 @@ runs get, for a robot the server had never seen before:
 
 ![The finished custom run: metrics, rollout video, and a downloadable policy bundle](/articles/Sim2Policy-the-serverless-RL-platform-that-trains-the-robot-you-upload/images/custom-result.jpg)
 
-| | |
-| --- | --- |
-| Robot | uploaded quadruped, 9 bodies · 9 joints · 8 actuators |
-| Profile | `custom-ppo-quick-v3` — 3,000,000 steps, 16 parallel envs |
-| Compute | Nebius `cpu-d3` · `16vcpu-64gb` |
-| Training runtime | 15m 39s |
-| **Cost** | **$0.10** |
-| Evaluation | 20 episodes · mean reward 4,819 ± 17 · fall rate 0% |
-| Verdict | **Task threshold met** — success rate 100% |
+<table>
+  <tbody>
+    <tr>
+      <th scope="row">Robot</th>
+      <td>uploaded quadruped, 9 bodies · 9 joints · 8 actuators</td>
+    </tr>
+    <tr>
+      <th scope="row">Profile</th>
+      <td><code>custom-ppo-quick-v3</code> — 3,000,000 steps, 16 parallel envs</td>
+    </tr>
+    <tr>
+      <th scope="row">Compute</th>
+      <td>Nebius <code>cpu-d3</code> · <code>16vcpu-64gb</code></td>
+    </tr>
+    <tr>
+      <th scope="row">Training runtime</th>
+      <td>15m 39s</td>
+    </tr>
+    <tr>
+      <th scope="row">Cost</th>
+      <td><strong>$0.10</strong></td>
+    </tr>
+    <tr>
+      <th scope="row">Evaluation</th>
+      <td>20 episodes · mean reward 4,819 ± 17 · fall rate 0%</td>
+    </tr>
+    <tr>
+      <th scope="row">Verdict</th>
+      <td><strong>Task threshold met</strong> — success rate 100%</td>
+    </tr>
+  </tbody>
+</table>
 
 It walks. Twenty of twenty evaluation episodes run the full 1,000-step horizon, none of them falls,
 and the gait averages **0.83 m/s** for 16.7 m of forward progress per episode. The spread is

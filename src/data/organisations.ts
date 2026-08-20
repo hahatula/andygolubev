@@ -2,13 +2,13 @@ import { Organisation } from "@/types/organisations";
 
 export const organisations: Organisation[] = [
     {
-        id: "Discount",
-        name: "Bank Discount",
-        bussinessField: "Finance",
-        country: "Israel",
-        logo: "/images/organisations/color/discont.svg",
-        logoBw: "/images/organisations/discont.svg",
-        link: "https://www.discountbank.co.il"
+        id: "Rhino",
+        name: "Rhino",
+        bussinessField: "Federated ML",
+        country: "USA/Israel",
+        logo: "/images/organisations/color/rhino.svg",
+        logoBw: "/images/organisations/rhino.svg",
+        link: "https://www.rhinofcp.com/"
     },
     {
         id: "OpsGuru",
@@ -29,13 +29,13 @@ export const organisations: Organisation[] = [
         link: "https://www.rbinternational.com"
     },
     {
-        id: "Global Remit",
-        name: "Global Remit",
-        bussinessField: "FinTech",
+        id: "Discount",
+        name: "Bank Discount",
+        bussinessField: "Finance",
         country: "Israel",
-        logo: "/images/organisations/color/globalremit.svg",
-        logoBw: "/images/organisations/globalremit.svg",
-        link: "https://global-remit.co.il/"
+        logo: "/images/organisations/color/discont.svg",
+        logoBw: "/images/organisations/discont.svg",
+        link: "https://www.discountbank.co.il"
     },
     {
         id: "Israel Antiquities Authority",
@@ -47,13 +47,13 @@ export const organisations: Organisation[] = [
         link: "https://www.antiquities.org.il"
     },
     {
-        id: "Rhino",
-        name: "Rhino",
-        bussinessField: "Federated ML",
-        country: "USA/Israel",
-        logo: "/images/organisations/color/rhino.svg",
-        logoBw: "/images/organisations/rhino.svg",
-        link: "https://www.rhinofcp.com/"
+        id: "Global Remit",
+        name: "Global Remit",
+        bussinessField: "FinTech",
+        country: "Israel",
+        logo: "/images/organisations/color/globalremit.svg",
+        logoBw: "/images/organisations/globalremit.svg",
+        link: "https://global-remit.co.il/"
     },
     // {
     //     id: "STADIK",
