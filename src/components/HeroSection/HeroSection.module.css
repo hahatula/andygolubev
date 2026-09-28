@@ -85,14 +85,23 @@
 @media (width <=580px) {
     .heroTitle {
         font-size: 30px;
-
-        .heroTitleName {
-            width: 100%;
-        }
+        width: 100%;
 
         .heroTitleDescription {
             font-size: 40px;
             border-radius: 0;
+
+            &::after {
+                content: "";
+                position: absolute;
+                top: calc(-1 * var(--default-radius));
+                right: 0px;
+                width: var(--default-radius);
+                height: var(--default-radius);
+                background-color: var(--background);
+                mask: url("/images/smooth-corners/right-bottom.svg") center / 100% 100% no-repeat;
+            }
         }
+
     }
 }

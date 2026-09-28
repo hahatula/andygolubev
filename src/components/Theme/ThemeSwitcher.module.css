@@ -26,7 +26,6 @@
 
 @media (width <= 800px) {
     .switcher {
-        position: relative;
         align-self: flex-end;
         right: auto;
         bottom: auto;
